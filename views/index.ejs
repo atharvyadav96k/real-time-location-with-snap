@@ -2,82 +2,63 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Live Snapped Location</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="/socket.io/socket.io.js"></script>
-  <style>
-    body { margin: 0; display: flex; height: 100vh; }
-    #map { flex: 2; height: 100%; }
-    #logs {
-      flex: 1; height: 100%; overflow-y: auto;
-      background: #111; color: #0f0;
-      font-family: monospace; padding: 10px;
-    }
-    .log-entry { border-bottom: 1px solid #333; padding: 5px 0; }
-    .success { color: #0f0; }
-    .error { color: #f33; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Watch Position Example</title>
 </head>
 <body>
-  <div id="map"></div>
-  <div id="logs"><strong>Request Logs:</strong><br/></div>
+  <h2>Live Location Tracking</h2>
+  <p id="status">Waiting for location...</p>
+  <p id="coords"></p>
+  <button onclick="stopTracking()">Stop Tracking</button>
 
   <script>
-    const map = L.map('map').setView([20.5937, 78.9629], 5); // India center
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors"
-    }).addTo(map);
+    let watchId;
 
-    const socket = io();
-    let marker;
+    if ("geolocation" in navigator) {
+      document.getElementById("status").innerText = "Tracking location...";
 
-    function logMessage(msg, type = "success") {
-      const logsDiv = document.getElementById("logs");
-      const time = new Date().toLocaleTimeString();
-      const entry = document.createElement("div");
-      entry.classList.add("log-entry", type);
-      entry.textContent = `[${time}] ${msg}`;
-      logsDiv.prepend(entry);
-    }
+      // Start watching position
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
 
-    // Receive snapped location from server
-    socket.on("locationResponse", (data) => {
-      if (data.status === "success") {
-        const { lat, lon } = data;
+          document.getElementById("coords").innerText =
+            `Latitude: ${latitude.toFixed(6)}, Longitude: ${longitude.toFixed(6)}, Accuracy: ${accuracy} meters`;
 
-        if (!marker) {
-          marker = L.marker([lat, lon]).addTo(map);
-          map.setView([lat, lon], 17);
-        } else {
-          marker.setLatLng([lat, lon]);
-          map.setView([lat, lon]);
-        }
-
-        logMessage(`Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`, "success");
-      } else {
-        logMessage(`Error: ${data.message}`, "error");
-      }
-    });
-
-    function updateLocation() {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          pos => {
-            const { latitude, longitude } = pos.coords;
-            socket.emit("sendLocation", { lat: latitude, lon: longitude });
-          },
-          err => {
-            logMessage(`Geolocation error: ${err.message}`, "error");
+          console.log("Updated Position:", latitude, longitude);
+        },
+        (error) => {
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              alert("User denied location permission.");
+              break;
+            case error.POSITION_UNAVAILABLE:
+              alert("Location unavailable.");
+              break;
+            case error.TIMEOUT:
+              alert("Request timed out.");
+              break;
+            default:
+              alert("Unknown error occurred.");
           }
-        );
-      } else {
-        logMessage("Geolocation not supported", "error");
-      }
+        },
+        {
+          enableHighAccuracy: true, // best accuracy
+          timeout: 5000,            // wait max 5s for update
+          maximumAge: 0             // no cached positions
+        }
+      );
+    } else {
+      alert("Geolocation is not supported by your browser.");
     }
 
-    // Run every 3 seconds
-    setInterval(updateLocation, 3000);
+    // Stop tracking when button clicked
+    function stopTracking() {
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+        document.getElementById("status").innerText = "Tracking stopped.";
+      }
+    }
   </script>
 </body>
 </html>
