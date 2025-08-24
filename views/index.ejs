@@ -5,35 +5,18 @@
   <title>Live Snapped Location</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
   <style>
-    body {
-      margin: 0;
-      display: flex;
-      height: 100vh;
-    }
-    #map {
-      flex: 2;
-      height: 100%;
-    }
+    body { margin: 0; display: flex; height: 100vh; }
+    #map { flex: 2; height: 100%; }
     #logs {
-      flex: 1;
-      height: 100%;
-      overflow-y: auto;
-      background: #111;
-      color: #0f0;
-      font-family: monospace;
-      padding: 10px;
+      flex: 1; height: 100%; overflow-y: auto;
+      background: #111; color: #0f0;
+      font-family: monospace; padding: 10px;
     }
-    .log-entry {
-      border-bottom: 1px solid #333;
-      padding: 5px 0;
-    }
-    .success {
-      color: #0f0;
-    }
-    .error {
-      color: #f33;
-    }
+    .log-entry { border-bottom: 1px solid #333; padding: 5px 0; }
+    .success { color: #0f0; }
+    .error { color: #f33; }
   </style>
 </head>
 <body>
@@ -42,11 +25,11 @@
 
   <script>
     const map = L.map('map').setView([20.5937, 78.9629], 5); // India center
-
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap contributors"
     }).addTo(map);
 
+    const socket = io();
     let marker;
 
     function logMessage(msg, type = "success") {
@@ -55,48 +38,34 @@
       const entry = document.createElement("div");
       entry.classList.add("log-entry", type);
       entry.textContent = `[${time}] ${msg}`;
-      logsDiv.prepend(entry); // newest on top
+      logsDiv.prepend(entry);
     }
 
-    function sendLocation(lat, lon) {
-      fetch("/snap", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat, lon })
-      })
-      .then(res => {
-        if (!res.ok) throw new Error(`Server responded with ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        if (data && data.waypoints && data.waypoints.length > 0) {
-          const snapped = data.waypoints[0].location; // OSRM nearest gives [lon, lat]
-          const [lon, lat] = snapped;
+    // Receive snapped location from server
+    socket.on("locationResponse", (data) => {
+      if (data.status === "success") {
+        const { lat, lon } = data;
 
-          if (!marker) {
-            marker = L.marker([lat, lon]).addTo(map);
-            map.setView([lat, lon], 17);
-          } else {
-            marker.setLatLng([lat, lon]);
-            map.setView([lat, lon]);
-          }
-
-          logMessage(`Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`, "success");
+        if (!marker) {
+          marker = L.marker([lat, lon]).addTo(map);
+          map.setView([lat, lon], 17);
         } else {
-          logMessage("No waypoints returned from server", "error");
+          marker.setLatLng([lat, lon]);
+          map.setView([lat, lon]);
         }
-      })
-      .catch(err => {
-        logMessage(`Failed request: ${err.message}`, "error");
-      });
-    }
+
+        logMessage(`Lat: ${lat.toFixed(6)}, Lon: ${lon.toFixed(6)}`, "success");
+      } else {
+        logMessage(`Error: ${data.message}`, "error");
+      }
+    });
 
     function updateLocation() {
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           pos => {
             const { latitude, longitude } = pos.coords;
-            sendLocation(latitude, longitude);
+            socket.emit("sendLocation", { lat: latitude, lon: longitude });
           },
           err => {
             logMessage(`Geolocation error: ${err.message}`, "error");
