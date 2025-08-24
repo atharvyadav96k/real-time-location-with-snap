@@ -2,72 +2,83 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Live Location Tracker</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <title>Live Location Logger</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    #map {
-      height: 100vh;
-      width: 100%;
+    #map { height: 400px; width: 100%; }
+    #logs {
+      max-height: 300px;
+      overflow-y: auto;
+      background: #111;
+      color: #0f0;
+      padding: 10px;
+      font-family: monospace;
+      border-radius: 6px;
+      margin-top: 10px;
     }
   </style>
 </head>
 <body>
-  <h2 style="text-align:center;">Live Location Tracker (OpenStreetMap)</h2>
+  <h2>Live Location Tracker with Logs</h2>
   <div id="map"></div>
+  <h3>Logs</h3>
+  <div id="logs"></div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    // Initialize map
-    const map = L.map("map").setView([16.704987, 74.243252], 15);
+    const map = L.map('map').setView([0, 0], 2);
 
-    // Add OSM tiles
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
     }).addTo(map);
 
-    // Marker for user
-    let marker = L.marker([16.704987, 74.243252]).addTo(map);
+    let marker;
+    const logsDiv = document.getElementById("logs");
 
-    // Backend endpoint
-    const backendURL = "http://localhost:3000/location"; // <-- change to your server
+    function logMessage(message) {
+      const p = document.createElement("p");
+      p.textContent = message;
+      logsDiv.appendChild(p);
+      logsDiv.scrollTop = logsDiv.scrollHeight;
+    }
 
-    // Watch user position
+    // Start watching position
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition(
         async (pos) => {
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
 
-          console.log("📍 Current Position:", { lat, lng });
+          // Update marker
+          if (!marker) {
+            marker = L.marker([lat, lng]).addTo(map);
+            map.setView([lat, lng], 15);
+          } else {
+            marker.setLatLng([lat, lng]);
+          }
 
-          // Update marker on map
-          marker.setLatLng([lat, lng]);
-          map.setView([lat, lng]);
+          // Log request
+          const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+          logMessage("Request → " + url);
 
-          // Send to backend
           try {
-            console.log("➡️ Sending request:", { lat, lng });
-            const response = await fetch(backendURL, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ latitude: lat, longitude: lng }),
-            });
+            const res = await fetch(url, { headers: { "User-Agent": "LocationLoggerApp" } });
+            const data = await res.json();
 
-            const data = await response.json();
-            console.log("✅ Backend response:", data);
+            // Log response
+            logMessage("Response ← " + JSON.stringify(data));
+
           } catch (err) {
-            console.error("❌ Error sending to backend:", err);
+            logMessage("Error ← " + err.message);
           }
         },
         (err) => {
-          console.error("⚠️ Geolocation error:", err);
+          logMessage("Geolocation Error: " + err.message);
         },
         { enableHighAccuracy: true }
       );
     } else {
-      alert("Geolocation not supported in this browser!");
+      logMessage("Geolocation not supported in this browser.");
     }
   </script>
 </body>
