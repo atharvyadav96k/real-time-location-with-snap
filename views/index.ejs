@@ -1,7 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>Live Location Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <style>
     #map {
       height: 100vh;
@@ -10,66 +12,63 @@
   </style>
 </head>
 <body>
+  <h2 style="text-align:center;">Live Location Tracker (OpenStreetMap)</h2>
   <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    let map, marker;
+    // Initialize map
+    const map = L.map("map").setView([16.704987, 74.243252], 15);
 
-    function initMap(lat, lng) {
-      map = new google.maps.Map(document.getElementById("map"), {
-        center: { lat, lng },
-        zoom: 15,
-      });
-      marker = new google.maps.Marker({
-        position: { lat, lng },
-        map: map,
-      });
-    }
+    // Add OSM tiles
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+    }).addTo(map);
 
-    // Send location to server with request/response logs
-    async function sendLocation(lat, lng) {
-      const url = "http://your-server-ip:3000/location"; // replace with your server
-      const body = { latitude: lat, longitude: lng };
+    // Marker for user
+    let marker = L.marker([16.704987, 74.243252]).addTo(map);
 
-      console.log("📤 Request to server:", body);
+    // Backend endpoint
+    const backendURL = "http://localhost:3000/location"; // <-- change to your server
 
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-
-        const data = await res.json();
-        console.log("✅ Response from server:", data);
-      } catch (err) {
-        console.error("❌ Request failed:", err);
-      }
-    }
-
-    // Watch position
+    // Watch user position
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
+        async (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
 
-          if (!map) {
-            initMap(lat, lng);
-          } else {
-            marker.setPosition({ lat, lng });
-            map.setCenter({ lat, lng });
+          console.log("📍 Current Position:", { lat, lng });
+
+          // Update marker on map
+          marker.setLatLng([lat, lng]);
+          map.setView([lat, lng]);
+
+          // Send to backend
+          try {
+            console.log("➡️ Sending request:", { lat, lng });
+            const response = await fetch(backendURL, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ latitude: lat, longitude: lng }),
+            });
+
+            const data = await response.json();
+            console.log("✅ Backend response:", data);
+          } catch (err) {
+            console.error("❌ Error sending to backend:", err);
           }
-
-          sendLocation(lat, lng);
         },
-        (error) => console.error("Geolocation error:", error),
+        (err) => {
+          console.error("⚠️ Geolocation error:", err);
+        },
         { enableHighAccuracy: true }
       );
     } else {
-      console.error("Geolocation is not supported by this browser.");
+      alert("Geolocation not supported in this browser!");
     }
   </script>
-  <!-- Replace with your own API key -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY"></script>
 </body>
 </html>
