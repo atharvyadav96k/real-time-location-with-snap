@@ -22,7 +22,7 @@ app.post("/snap", async (req, res) => {
 
     // Use Nearest API for single-point snapping
     const url = `http://localhost:5000/nearest/v1/driving/${lon},${lat}`;
-
+    console.log(lat, lon);
     const response = await fetch(url);
     const data = await response.json();
 
