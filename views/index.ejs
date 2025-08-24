@@ -1,64 +1,75 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Watch Position Example</title>
+  <title>Live Location Tracker</title>
+  <style>
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+  </style>
 </head>
 <body>
-  <h2>Live Location Tracking</h2>
-  <p id="status">Waiting for location...</p>
-  <p id="coords"></p>
-  <button onclick="stopTracking()">Stop Tracking</button>
-
+  <div id="map"></div>
   <script>
-    let watchId;
+    let map, marker;
 
-    if ("geolocation" in navigator) {
-      document.getElementById("status").innerText = "Tracking location...";
-
-      // Start watching position
-      watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          const { latitude, longitude, accuracy } = position.coords;
-
-          document.getElementById("coords").innerText =
-            `Latitude: ${latitude.toFixed(6)}, Longitude: ${longitude.toFixed(6)}, Accuracy: ${accuracy} meters`;
-
-          console.log("Updated Position:", latitude, longitude);
-        },
-        (error) => {
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              alert("User denied location permission.");
-              break;
-            case error.POSITION_UNAVAILABLE:
-              alert("Location unavailable.");
-              break;
-            case error.TIMEOUT:
-              alert("Request timed out.");
-              break;
-            default:
-              alert("Unknown error occurred.");
-          }
-        },
-        {
-          enableHighAccuracy: true, // best accuracy
-          timeout: 5000,            // wait max 5s for update
-          maximumAge: 0             // no cached positions
-        }
-      );
-    } else {
-      alert("Geolocation is not supported by your browser.");
+    function initMap(lat, lng) {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat, lng },
+        zoom: 15,
+      });
+      marker = new google.maps.Marker({
+        position: { lat, lng },
+        map: map,
+      });
     }
 
-    // Stop tracking when button clicked
-    function stopTracking() {
-      if (watchId) {
-        navigator.geolocation.clearWatch(watchId);
-        document.getElementById("status").innerText = "Tracking stopped.";
+    // Send location to server with request/response logs
+    async function sendLocation(lat, lng) {
+      const url = "http://your-server-ip:3000/location"; // replace with your server
+      const body = { latitude: lat, longitude: lng };
+
+      console.log("📤 Request to server:", body);
+
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        const data = await res.json();
+        console.log("✅ Response from server:", data);
+      } catch (err) {
+        console.error("❌ Request failed:", err);
       }
     }
+
+    // Watch position
+    if (navigator.geolocation) {
+      navigator.geolocation.watchPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+
+          if (!map) {
+            initMap(lat, lng);
+          } else {
+            marker.setPosition({ lat, lng });
+            map.setCenter({ lat, lng });
+          }
+
+          sendLocation(lat, lng);
+        },
+        (error) => console.error("Geolocation error:", error),
+        { enableHighAccuracy: true }
+      );
+    } else {
+      console.error("Geolocation is not supported by this browser.");
+    }
   </script>
+  <!-- Replace with your own API key -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY"></script>
 </body>
 </html>
