@@ -46,22 +46,44 @@ io.on("connection", (socket) => {
   });
 
   socket.on("gpslocation", async (vechId, location) => {
-    client.set(vechId, "true");
-    const url = `http://localhost:5000/nearest/v1/driving/${location.lon},${location.lat}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`OSRM returned ${response.status}`);
-    const data = await response.json();
-    const snapped = data.waypoints[0].location;
-    const [snappedLon, snappedLat] = snapped;
-    storeLocationById(vechId, {lat: snappedLat, lng: snappedLon});
-    socket.to(vechId).emit("location", location);
-  })
+    try {
+      if (!location || isNaN(location.lat) || isNaN(location.lon)) {
+        console.error("❌ Invalid location:", location);
+        return socket.emit("error", { message: "Invalid location data" });
+      }
 
-  socket.on("disconnect", () => {
-    console.log("Client disconnected");
+      client.set(vechId, "true");
+
+      const url = `http://localhost:5000/nearest/v1/driving/${location.lon},${location.lat}`;
+      console.log("📡 OSRM request:", url);
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.error("❌ OSRM error:", response.status, response.statusText);
+        return socket.emit("error", { message: `OSRM returned ${response.status}` });
+      }
+
+      const data = await response.json();
+      if (!data.waypoints || !data.waypoints[0]) {
+        return socket.emit("error", { message: "No waypoints returned" });
+      }
+
+      const snapped = data.waypoints[0].location;
+      const [snappedLon, snappedLat] = snapped;
+
+      storeLocationById(vechId, { lat: snappedLat, lng: snappedLon });
+
+      socket.to(vechId).emit("location", { lat: snappedLat, lon: snappedLon });
+    } catch (err) {
+      console.error("❌ GPS Handler error:", err);
+      socket.emit("error", { message: err.message });
+    }
+
+    socket.on("disconnect", () => {
+      console.log("Client disconnected");
+    });
   });
-});
 
-server.listen(3000, () => {
-  console.log("Server running on http://localhost:3000");
-});
+  server.listen(3000, () => {
+    console.log("Server running on http://localhost:3000");
+  });
