@@ -40,21 +40,30 @@
     socket.on("location", (location) => {
       console.log("Received:", location);
 
+      // normalize lon -> lng
+      const lat = location.lat;
+      const lng = location.lng !== undefined ? location.lng : location.lon;
+
+      if (typeof lat !== "number" || typeof lng !== "number") {
+        console.error("❌ Invalid location:", location);
+        return;
+      }
+
       // Add new point
-      pathCoords.push([location.lat, location.lng]);
+      pathCoords.push([lat, lng]);
 
       // Update line
       polyline.setLatLngs(pathCoords);
 
       // Update marker
       if (marker) {
-        marker.setLatLng([location.lat, location.lng]);
+        marker.setLatLng([lat, lng]);
       } else {
-        marker = L.marker([location.lat, location.lng]).addTo(map);
+        marker = L.marker([lat, lng]).addTo(map);
       }
 
       // Center map on new point
-      map.setView([location.lat, location.lng]);
+      map.setView([lat, lng]);
     });
 
     socket.on("joinError", (err) => {
