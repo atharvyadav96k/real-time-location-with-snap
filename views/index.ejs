@@ -42,7 +42,7 @@
 
       // normalize lon -> lng
       const lat = location.lat;
-      const lng = location.lng !== undefined ? location.lng : location.lon;
+      const lng = location.lon;
 
       if (typeof lat !== "number" || typeof lng !== "number") {
         console.error("❌ Invalid location:", location);
