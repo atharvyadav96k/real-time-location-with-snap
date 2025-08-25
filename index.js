@@ -45,14 +45,14 @@ io.on("connection", (socket) => {
 
   socket.on("gpslocation", async (vechId, location) => {
     try {
-      if (!location || isNaN(location.lat) || isNaN(location.lon)) {
+      if (!location || isNaN(location.lat) || isNaN(location.lng)) {
         console.error("❌ Invalid location:", location);
         return socket.emit("error", { message: "Invalid location data" });
       }
 
       await client.set(vechId, "true");
 
-      const url = `http://localhost:5000/nearest/v1/driving/${location.lon},${location.lat}`;
+      const url = `http://localhost:5000/nearest/v1/driving/${location.lng},${location.lat}`;
       console.log("📡 OSRM request:", url);
 
       const response = await fetch(url);
