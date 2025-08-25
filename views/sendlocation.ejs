@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Send Location</title>
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+</head>
+<body>
+  <h1>GPS Location Sender</h1>
+  <div id="logs"></div>
+
+  <script>
+    const vechId = "bus123"; // Hardcoded, or make this dynamic from user input
+    const socket = io({
+      query: { vechId }
+    });
+
+    socket.on("connect", () => {
+      logMessage(`Connected. Starting to send location for ${vechId}`);
+
+      // Fake sending location every 3 seconds
+      setInterval(() => {
+        const location = {
+          lat: 16.6840 + Math.random() * 0.001,
+          lng: 74.4737 + Math.random() * 0.001
+        };
+        socket.emit("gpslocation", vechId, location);
+        logMessage(`Sent: ${location.lat}, ${location.lng}`);
+      }, 3000);
+    });
+
+    function logMessage(msg) {
+      const logs = document.getElementById("logs");
+      const p = document.createElement("p");
+      p.textContent = msg;
+      logs.appendChild(p);
+    }
+  </script>
+</body>
+</html>

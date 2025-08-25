@@ -2,85 +2,64 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Live Snapped Location</title>
+  <title>Live Location Viewer</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
   <style>
-    body { margin: 0; display: flex; height: 100vh; font-family: monospace; }
-    #map { flex: 2; height: 100%; }
-    #logs {
-      flex: 1; height: 100%; overflow-y: auto;
-      background: #111; color: #0f0;
-      padding: 10px;
-    }
-    .log-entry { border-bottom: 1px solid #333; padding: 5px 0; }
-    .success { color: #0f0; }
-    .error { color: #f33; }
-    .request { color: #0ff; }
+    body { margin: 0; }
+    #map { height: 100vh; width: 100%; }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div id="logs"><strong>📜 Request/Response Logs:</strong><br/></div>
 
   <script>
-    const map = L.map('map').setView([20.5937, 78.9629], 5); // India center default
+    const vechId = "bus123"; // Hardcoded for now, can make dynamic later
+    const map = L.map("map").setView([16.6840, 74.4737], 15);
+
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors"
+      maxZoom: 19
     }).addTo(map);
 
-    const socket = io();
+    let pathCoords = [];
+    let polyline = L.polyline(pathCoords, { color: "blue" }).addTo(map);
     let marker;
 
-    function logMessage(msg, type = "success") {
-      const logsDiv = document.getElementById("logs");
-      const time = new Date().toLocaleTimeString();
-      const entry = document.createElement("div");
-      entry.classList.add("log-entry", type);
-      entry.textContent = `[${time}] ${msg}`;
-      logsDiv.prepend(entry);
-    }
+    const socket = io({ query: { vechId } });
 
-    // Receive snapped location from server
-    socket.on("locationResponse", (data) => {
-      if (data.status === "success") {
-        const { lat, lon } = data;
-
-        if (!marker) {
-          marker = L.marker([lat, lon]).addTo(map);
-          map.setView([lat, lon], 17);
-        } else {
-          marker.setLatLng([lat, lon]);
-          map.setView([lat, lon]);
-        }
-
-        logMessage(`✅ Response: Snapped → Lat=${lat.toFixed(6)}, Lon=${lon.toFixed(6)}`, "success");
-      } else {
-        logMessage(`❌ Response Error: ${data.message}`, "error");
-      }
+    socket.on("connect", () => {
+      console.log("Connected, joining bus:", vechId);
+      socket.emit("joinBus");
     });
 
-    // Watch user location
-    if (navigator.geolocation) {
-      navigator.geolocation.watchPosition(
-        (pos) => {
-          const { latitude, longitude } = pos.coords;
+    socket.on("joinedBus", (data) => {
+      console.log(`Joined bus room: ${data.vechId}`);
+    });
 
-          // Log request
-          logMessage(`📡 Request: Raw → Lat=${latitude.toFixed(6)}, Lon=${longitude.toFixed(6)}`, "request");
+    socket.on("location", (location) => {
+      console.log("Received:", location);
 
-          // Send to backend
-          socket.emit("sendLocation", { lat: latitude, lon: longitude });
-        },
-        (err) => {
-          logMessage(`Geolocation error: ${err.message}`, "error");
-        },
-        { enableHighAccuracy: true }
-      );
-    } else {
-      logMessage("Geolocation not supported", "error");
-    }
+      // Add new point
+      pathCoords.push([location.lat, location.lng]);
+
+      // Update line
+      polyline.setLatLngs(pathCoords);
+
+      // Update marker
+      if (marker) {
+        marker.setLatLng([location.lat, location.lng]);
+      } else {
+        marker = L.marker([location.lat, location.lng]).addTo(map);
+      }
+
+      // Center map on new point
+      map.setView([location.lat, location.lng]);
+    });
+
+    socket.on("joinError", (err) => {
+      alert("Error: " + err.message);
+    });
   </script>
 </body>
 </html>
